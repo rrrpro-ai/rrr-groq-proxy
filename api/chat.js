@@ -33,42 +33,41 @@ export default async function handler(req, res) {
   const requestOrigin = req.headers.origin;
   const requestReferer = req.headers.referer || "";
 
-  // 4. [CRITICAL FIX] OPTIONS Preflight ரெக்வஸ்ட்டை கையாளுதல்
-  // blob சூழலில் பிரவுசர் அனுப்பும் சோதன ஓட்டத்திற்கு (Preflight) நிபந்தனையின்றி கதவைத் திறக்கிறோம்.
-  if (req.method === 'OPTIONS') {
+  // 4. [CRITICAL CORS FIX] பிரவுசர் எரர் வராமல் தடுக்கும் டைனமிக் ஹெடர் லாஜிக்
+  // ரெக்வஸ்ட் எங்கிருந்து வருகிறதோ (அது null ஆக இருந்தாலும் சரி), அதை அப்படியே திருப்பி அனுப்பி Credentials-ஐ அனுமதிப்பதே சரியான முறை.
+  const currentOrigin = requestOrigin || "*";
+  res.setHeader('Access-Control-Allow-Origin', currentOrigin);
+  
+  if (currentOrigin !== "*") {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
-    res.setHeader('Access-Control-Allow-Origin', requestOrigin || '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
+
+  // 5. OPTIONS Preflight ரெக்வஸ்ட்டை உடனடியாக பாஸ் செய்தல்
+  if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // 5. POST Request மட்டுமே அனுமதிக்கப்படும்
+  // POST Request மட்டுமே அனுமதிக்கப்படும்
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
   }
 
-  // 6. அசல் POST ரெக்வஸ்ட்டில் டொமைனைத் தீவிரமாகச் சரிபார்த்தல் (Strict Guard)
+  // 6. அட்வான்ஸ்டு டொமைன் பாதுகாப்பு சோதனை (Strict Guardrail)
   const isAllowedOrigin = requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin);
   const isAllowedReferer = ALLOWED_ORIGINS.some(domain => requestReferer.includes(domain));
+  const isBlobOrSandbox = (requestOrigin === "null" || !requestOrigin); // blob: சூழலில் Origin 'null' ஆக மாறும்
 
-  // ரெக்வஸ்ட் வந்த Origin அல்லது Referer இரண்டிலுமே உங்களுடைய 3 டொமைன்கள் இல்லை என்றால் பிளாக் செய்யப்படும்.
-  if (!isAllowedOrigin && !isAllowedReferer) {
+  // உங்கள் 3 டொமைனும் இல்லாமல், அது blob-ம் இல்லை என்றால் மட்டுமே 403 கொடுக்க வேண்டும்.
+  // இது உங்கள் பிளாக்கர் தளத்தின் blob URL-ஐ தடையின்றி இயங்க வைக்கும்!
+  if (!isAllowedOrigin && !isAllowedReferer && !isBlobOrSandbox) {
     return res.status(403).json({ error: 'Access denied: Unauthorized domain source.' });
   }
 
-  // 7. CORS Headers அமைத்தல் (Dynamic Header Injection)
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  if (requestOrigin) {
-    res.setHeader('Access-Control-Allow-Origin', requestOrigin); // blob எனில் 'null' என்றும், சாதாரண டொமைன் எனில் அப்படியே டொமைன் பெயரையும் திருப்பி அனுப்பும்
-  } else {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  }
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-
   try {
-    // 8. Rate Limiting Check
+    // 7. Rate Limiting Check (நிமிடத்திற்கு 15)
     if (ratelimit) {
       const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || "global";
       const { success } = await ratelimit.limit(ip);
@@ -83,7 +82,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message payload is required.' });
     }
 
-    // 9. Content Validation
+    // 8. கன்டென்ட் பாதுகாப்பு சோதனை
     if (isUnsafeInput(message)) {
       return res.status(400).json({ error: 'Policy violation: Unsafe content detected.' });
     }
@@ -92,7 +91,7 @@ export default async function handler(req, res) {
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
     const SYSTEM_PROMPT = process.env.SYSTEM_PROMPT || "You are a helpful assistant.";
 
-    // 10. Groq AI API-க்கு பாதுகாப்பாக Request அனுப்புதல்
+    // 9. Groq AI API-க்கு பாதுகாப்பாக Request அனுப்புதல்
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
