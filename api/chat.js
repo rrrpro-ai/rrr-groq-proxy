@@ -23,10 +23,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message payload is required.' });
     }
 
-    // Vercel Environment Variable-ல் நாம் மறைத்து வைக்கப்போகும் Groq Key
+    // Vercel Environment Variable-ல் நாம் மறைத்து வைத்துள்ள Groq Key
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-    // Groq AI API-க்கு பாதுகாப்பாக Request அனுப்புதல்
+    // Groq AI API-க்கு பாதுகாப்பாக Request அனுப்புதல் (புதிய Llama 3.3 மாடல்)
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -34,7 +34,7 @@ export default async function handler(req, res) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768', 
+        model: 'llama-3.3-70b-versatile', 
         messages: [
           { role: 'user', content: message }
         ]
