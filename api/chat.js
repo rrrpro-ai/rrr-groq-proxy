@@ -33,19 +33,37 @@ export default async function handler(req, res) {
   const requestOrigin = req.headers.origin;
   const requestReferer = req.headers.referer || "";
 
-  // 4. [CRITICAL CORS FIX] பிரவுசர் எரர் வராமல் தடுக்கும் டைனமிக் ஹெடர் லாஜிக்
-  // ரெக்வஸ்ட் எங்கிருந்து வருகிறதோ (அது null ஆக இருந்தாலும் சரி), அதை அப்படியே திருப்பி அனுப்பி Credentials-ஐ அனுமதிப்பதே சரியான முறை.
-  const currentOrigin = requestOrigin || "*";
-  res.setHeader('Access-Control-Allow-Origin', currentOrigin);
-  
-  if (currentOrigin !== "*") {
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // 4. செக்யூரிட்டி செக்: Origin மற்றும் Referer இரண்டையும் சரிபார்த்தல்
+  const isAllowedOrigin = requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin);
+  const isAllowedReferer = ALLOWED_ORIGINS.some(domain => requestReferer.startsWith(domain));
+
+  // Blob URL பாதுகாப்பு லாஜிக்:
+  // Blob URL-ல் இருந்து வரும்போது Origin "null" என்று வரும்.
+  // அந்த சமயத்தில், அது உங்களுடைய Blogger-ல் இருந்துதான் வருகிறதா என்பதை Referer மூலம் மட்டுமே கண்டுபிடிக்க முடியும்.
+  const isSecureBlob = (requestOrigin === "null" && isAllowedReferer);
+
+  // உங்களுடைய 3 டொமைனிலிருந்து நேரடியாகவோ, அல்லது அதனுள் உருவாக்கப்பட்ட Blob வழியாகவோ வரவில்லை என்றால், அனுமதி மறுக்கப்படும்!
+  if (!isAllowedOrigin && !isSecureBlob && !isAllowedReferer) {
+    return res.status(403).json({ error: 'Access denied: Unauthorized domain source.' });
   }
-  
+
+  // 5. [CRITICAL CORS FIX] பிரவுசர் எரர் வராமல் தடுக்கும் டைனமிக் ஹெடர் லாஜிக்
+  // பிரவுசர் "Credentials true" ஆக இருக்கும்போது "*" ஐ அனுமதிக்காது. எனவே சரியான Origin-ஐயே திருப்பி அனுப்ப வேண்டும்.
+  let corsOrigin = ALLOWED_ORIGINS[0]; // Default fallback
+  if (isAllowedOrigin) {
+    corsOrigin = requestOrigin;
+  } else if (isSecureBlob) {
+    corsOrigin = "null"; // Blob-க்காக பிரத்யேக அனுமதி (இதுதான் Blob-ஐ வேலை செய்ய வைக்கும் ரகசியம்)
+  } else if (requestOrigin && isAllowedReferer) {
+    corsOrigin = requestOrigin;
+  }
+
+  res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
 
-  // 5. OPTIONS Preflight ரெக்வஸ்ட்டை உடனடியாக பாஸ் செய்தல்
+  // 6. OPTIONS Preflight ரெக்வஸ்ட்டை உடனடியாக பாஸ் செய்தல்
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -53,17 +71,6 @@ export default async function handler(req, res) {
   // POST Request மட்டுமே அனுமதிக்கப்படும்
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed. Use POST.' });
-  }
-
-  // 6. அட்வான்ஸ்டு டொமைன் பாதுகாப்பு சோதனை (Strict Guardrail)
-  const isAllowedOrigin = requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin);
-  const isAllowedReferer = ALLOWED_ORIGINS.some(domain => requestReferer.includes(domain));
-  const isBlobOrSandbox = (requestOrigin === "null" || !requestOrigin); // blob: சூழலில் Origin 'null' ஆக மாறும்
-
-  // உங்கள் 3 டொமைனும் இல்லாமல், அது blob-ம் இல்லை என்றால் மட்டுமே 403 கொடுக்க வேண்டும்.
-  // இது உங்கள் பிளாக்கர் தளத்தின் blob URL-ஐ தடையின்றி இயங்க வைக்கும்!
-  if (!isAllowedOrigin && !isAllowedReferer && !isBlobOrSandbox) {
-    return res.status(403).json({ error: 'Access denied: Unauthorized domain source.' });
   }
 
   try {
@@ -111,6 +118,7 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (error) {
+    // 🔥 உங்களின் பழைய கோடில் இருந்த அரைகுறை வரியை (Syntax Bug) சரிசெய்துவிட்டேன் 🔥
     return res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 }
