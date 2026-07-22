@@ -6,7 +6,8 @@ export default async function handler(req, res) {
   const ALLOWED_DOMAINS = [
     "https://rrrprourl.blogspot.com",
     "https://rlink0.blogspot.com",
-    "https://rrrproai.blogspot.com"
+    "https://rrrproai.blogspot.com",
+    "https://novaforge-ai.pages.dev"
   ];
 
   // 2. டொமைன் பாதுகாப்பு சோதனை (Domain Security Check)
