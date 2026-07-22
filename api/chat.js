@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     "https://rrrprourl.blogspot.com",
     "https://rlink0.blogspot.com",
     "https://rrrproai.blogspot.com",
-    "https://novaforge-ai.pages.dev"
+    "https://novaforge-ai.pages.dev",
   ];
 
   // 2. டொமைன் பாதுகாப்பு சோதனை (Domain Security Check)
