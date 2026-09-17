@@ -2,41 +2,49 @@ export default async function handler(req, res) {
   const requestOrigin = req.headers.origin || "null";
   const requestReferer = req.headers.referer || "";
 
-  // 1. நீங்கள் அனுமதித்த 3 RRR PRO MEX டொமைன்கள்
-  const ALLOWED_DOMAINS = [
+  // 1. ALLOWED ORIGINS (டொமைன் பெயர்கள் மட்டுமே இருக்க வேண்டும்! Path அல்லது இறுதியில் '/' இருக்கக்கூடாது)
+  const ALLOWED_ORIGINS = [
     "https://rrrprourl.blogspot.com",
     "https://rlink0.blogspot.com",
     "https://rrrproai.blogspot.com",
     "https://novaforge-ai.pages.dev",
-    "https://shadowself.pages.dev/",
-    "https://sites.google.com/view/rrrpromex/ultra"
+    "https://shadowself.pages.dev",
+    "https://sites.google.com" // Google Sites-ன் Origin
   ];
 
-  // 2. டொமைன் பாதுகாப்பு சோதனை (Domain Security Check)
-  const isAllowedOrigin = ALLOWED_DOMAINS.includes(requestOrigin);
-  const isAllowedReferer = ALLOWED_DOMAINS.some(domain => requestReferer.startsWith(domain));
-  
-  // Blob URL-களுக்கான சிறப்பு அனுமதி (Origin null ஆக இருந்தாலும் Referer-ஐ வைத்துச் சரிபார்க்கும்)
-  const isBlob = requestOrigin === "null" && isAllowedReferer; 
+  // 2. ALLOWED REFERERS (முழுமையான URL Path-களை இங்கு சரிபார்க்கலாம்)
+  const ALLOWED_REFERERS = [
+    "https://rrrprourl.blogspot.com",
+    "https://rlink0.blogspot.com",
+    "https://rrrproai.blogspot.com",
+    "https://novaforge-ai.pages.dev",
+    "https://shadowself.pages.dev",
+    "https://sites.google.com/view/rrrpromex" // Google Sites URL path
+  ];
 
-  // உங்களின் 3 டொமைன்களில் இருந்து வராவிட்டால், API-ஐ உடனடியாக பிளாக் செய்துவிடும்!
-  if (!isAllowedOrigin && !isAllowedReferer && !isBlob) {
+  // 3. டொமைன் பாதுகாப்பு சோதனை (Google Sites Embed-களையும் சேர்த்து சரிபார்க்கும்)
+  const isAllowedOrigin = ALLOWED_ORIGINS.includes(requestOrigin) || requestOrigin.endsWith(".googleusercontent.com");
+  const isAllowedReferer = ALLOWED_REFERERS.some(domain => requestReferer.startsWith(domain));
+  
+  // Blob URL அல்லது Google Embeds-க்கான சிறப்பு அனுமதி
+  const isBlobOrNull = (requestOrigin === "null" || requestOrigin.endsWith(".googleusercontent.com")) && (isAllowedReferer || requestReferer.includes("rrrpromex"));
+
+  // உங்களின் டொமைன்களில் இருந்து வராவிட்டால் பிளாக் செய்யும்
+  if (!isAllowedOrigin && !isAllowedReferer && !isBlobOrNull) {
     return res.status(403).json({ error: "Access Denied: RRR PRO MEX Security System. Unauthorized Domain." });
   }
 
-  // 3. CORS Headers (பிரவுசர் எரர்களைத் தடுக்கும் கச்சிதமான லாஜிக்)
-  if (requestOrigin === "null") {
-    // Blob URL-க்கு மட்டும் வைல்டுகார்டு அனுமதி
+  // 4. CORS Headers (பிரவுசர் எரர்களைத் தடுக்கும்)
+  if (requestOrigin === "null" || requestOrigin.endsWith(".googleusercontent.com")) {
     res.setHeader('Access-Control-Allow-Origin', '*'); 
   } else {
-    // நேரடி வெப்சைட்டிற்கு பாதுகாப்பான அனுமதி
     res.setHeader('Access-Control-Allow-Origin', requestOrigin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
 
-  // 4. OPTIONS Preflight ரெக்வஸ்ட்டை பாஸ் செய்தல்
+  // 5. OPTIONS Preflight ரெக்வஸ்ட்
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -52,10 +60,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Message payload is required.' });
     }
 
-    // Vercel Environment Variable-ல் உள்ள Groq Key
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-    // 5. Groq AI-க்கு கோரிக்கையை அனுப்புதல்
+    // 6. Groq AI-க்கு கோரிக்கையை அனுப்புதல்
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -72,8 +79,6 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (error) {
-    // எரர் வந்தால் அதைத் தெளிவாகக் காட்டும்
     return res.status(500).json({ error: 'Internal Server Error', details: error.message });
   }
 }
-
