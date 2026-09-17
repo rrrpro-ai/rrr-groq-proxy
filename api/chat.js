@@ -8,7 +8,8 @@ export default async function handler(req, res) {
     "https://rlink0.blogspot.com",
     "https://rrrproai.blogspot.com",
     "https://novaforge-ai.pages.dev",
-    "https://shadowself.pages.dev/"
+    "https://shadowself.pages.dev/",
+    "https://sites.google.com/view/rrrpromex/ultra"
   ];
 
   // 2. டொமைன் பாதுகாப்பு சோதனை (Domain Security Check)
