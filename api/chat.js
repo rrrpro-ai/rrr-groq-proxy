@@ -9,7 +9,8 @@ export default async function handler(req, res) {
     "https://rrrproai.blogspot.com",
     "https://novaforge-ai.pages.dev",
     "https://shadowself.pages.dev",
-    "https://sites.google.com" // Google Sites-ன் Origin
+    "https://sites.google.com", // Google Sites-ன் Origin
+    "https://maind-game.pages.dev"
   ];
 
   // 2. ALLOWED REFERERS (முழுமையான URL Path-களை இங்கு சரிபார்க்கலாம்)
@@ -19,7 +20,8 @@ export default async function handler(req, res) {
     "https://rrrproai.blogspot.com",
     "https://novaforge-ai.pages.dev",
     "https://shadowself.pages.dev",
-    "https://sites.google.com/view/rrrpromex" // Google Sites URL path
+    "https://sites.google.com/view/rrrpromex", // Google Sites URL path
+    "https://maind-game.pages.dev"
   ];
 
   // 3. டொமைன் பாதுகாப்பு சோதனை (Google Sites Embed-களையும் சேர்த்து சரிபார்க்கும்)
